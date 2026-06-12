@@ -1,0 +1,5 @@
+{
+    "model": "ResNet",
+    "epochs": 50,
+    "batch_size": 32
+}
