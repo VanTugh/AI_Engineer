@@ -1,24 +1,29 @@
 import logging
 
-# 1. Cấu hình logging mức INFO
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def call_llm_api(prompt):
-    # Giả lập lỗi API
+    # Hàm này mô phỏng môi trường bị lỗi, chỉ ném lỗi ra ngoài
     raise ValueError("API Key đã hết tiền!")
 
-try:
-    response = call_llm_api("Xin chào")
-    logging.info(f"Kết quả từ API: {response}")
 
-# 2. Bẫy lỗi ValueError
-except ValueError as e:
-    # 3. Ghi nhận lỗi bằng logging.error
-    logging.error(f"Lỗi khi gọi API: {e}")
+if __name__ == "__main__":
+    logging.info("Bắt đầu chương trình.")
 
-finally:
-    # 4. Luôn thực thi dù có lỗi hay không
-    logging.info("Đóng luồng kết nối API.")
+    # Nơi GỌI hàm sẽ là nơi BẪY lỗi
+    try:
+        # Cố gắng gọi hàm
+        response = call_llm_api("Xin chào")
+        logging.info(f"Kết quả từ API: {response}")
+
+    except ValueError as e:
+        # Hứng đúng cái lỗi ValueError văng ra từ bên trong hàm
+        logging.error(f"Lỗi khi gọi API: {e}")
+
+    finally:
+        # Dọn dẹp chiến trường
+        logging.info("Đóng luồng kết nối API.")
