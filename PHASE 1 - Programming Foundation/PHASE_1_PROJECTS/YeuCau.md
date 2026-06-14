@@ -53,3 +53,61 @@ Xây dựng một luồng xử lý dữ liệu chuẩn doanh nghiệp: Đọc fi
 3. **Checkpoint (Linh hồn của bài này):** Sau khi gửi xong lô thứ `N`, bro dùng `json.dump` ghi số `N` này vào một file `checkpoint.json`. Nếu luồng bị sập ở lô `N+1`, lần chạy sau code phải đọc file json này và bắt đầu xử lý từ lô `N+1` chứ không chạy lại từ lô số 0.
 
 ---
+---
+
+### Bước 1: Tư duy Hộp đen (Black-Box Thinking) - Xác định Input/Output
+
+Đừng lao vào nghĩ đến thuật toán vội. Hãy nhìn hệ thống như một cái hộp đen.
+
+* **Input của hệ thống là gì?** File CSV (rất nhiều rác, có thể có dòng bị lỗi).
+* **Output cần đạt được là gì?** Toàn bộ text được nhúng thành Vector một cách an toàn.
+* **Ràng buộc (Constraints):** * API của OpenAI gọi quá nhanh sẽ bị khóa (Rate Limit).
+* Giữa chừng rớt mạng thì sao? (Phải có Checkpoint).
+
+
+
+### Bước 2: Vẽ Luồng dữ liệu (Data Flow)
+
+Bro cần tưởng tượng đường đi của dữ liệu từ lúc là file thô đến lúc thành thành phẩm. Tôi thường lấy giấy bút ra vạch 4 trạm dừng:
+`CSV Thô` ➡️ `Làm sạch (Pandas)` ➡️ `Băm nhỏ (Chunker)` ➡️ `Gửi API (Async)` ➡️ `Lưu trạng thái (JSON)`
+
+### Bước 3: Tư duy "Chia để trị" (Modular Design)
+
+Hệ thống lớn dễ gãy. Phải băm nó thành các module nhỏ, độc lập. Ở bài 3, tôi thiết kế theo 4 khối:
+
+1. **Khối Tiền xử lý (`tien_xu_ly`):** Nhiệm vụ duy nhất là nhận đường dẫn file và nhả ra một List sạch. Không cần biết API là cái gì.
+2. **Khối Chia lô (`chunker`):** Chỉ làm đúng việc thái thịt. Đưa cục bự, nhả cục nhỏ.
+3. **Khối Bộ nhớ (`save/load_checkpoint`):** Chỉ làm việc với ổ cứng.
+4. **Khối Động cơ (`process_pipeline`):** Đây là "bộ não", gọi các khối kia lên ráp lại với nhau.
+
+*Tại sao phải chia?* Vì lỡ sau này sếp bảo: *"Đổi cho anh từ đọc file CSV sang đọc từ Database SQL"*. Bro chỉ cần viết lại đúng khối 1, ba khối còn lại không cần đụng đến một chữ! Đó là thiết kế tốt.
+
+### Bước 4: Tư duy Phòng thủ (Defensive Programming) - "Làm sao để nó sập?"
+
+Đây là bước phân biệt Senior và Intern. Senior luôn nhìn đâu cũng thấy rủi ro.
+Tôi sẽ tự đặt câu hỏi phản biện cho thiết kế của mình:
+
+* *Hỏi:* Nếu file CSV có những khoảng trắng vô hình thì sao?
+* *Giải quyết:* Phải thêm lệnh `.strip()` vào Pandas.
+
+
+* *Hỏi:* Nếu chia lô 1000 câu/lần thì sao?
+* *Giải quyết:* Bị quá tải (Timeout) mạng ngay. Phải dùng `batch_size` nhỏ thôi (ví dụ 5-10).
+
+
+* *Hỏi:* Đang ghi file `checkpoint.json` dở tay thì sập nguồn, file bị rỗng (Bug bro vừa gặp) thì sao?
+* *Giải quyết:* Phải có `try...except json.JSONDecodeError` để bắt lỗi khi đọc file rác.
+
+
+
+### Bước 5: Viết code từ dưới lên (Bottom-up Implementation)
+
+Khi đã có bản đồ trong đầu, bắt đầu mở IDE lên code. Nhưng nguyên tắc là: **Không code luồng chính ngay**.
+
+* Viết hàm `tien_xu_ly` trước. Cho chạy thử in ra màn hình xem data có sạch không. Sạch rồi mới đi tiếp.
+* Viết hàm `load/save checkpoint`. Chạy thử riêng nó xem có sinh ra file JSON không.
+* Viết `mock_api`.
+* Cuối cùng mới viết `process_pipeline` để nối các "viên gạch" đã được test kỹ lại với nhau.
+
+---
+
